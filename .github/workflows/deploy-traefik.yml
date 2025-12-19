@@ -1,0 +1,43 @@
+name: Deploy Traefik on self-hosted
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Traefik
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Ensure traefik directory exists
+        run: mkdir -p "${{ github.workspace }}/traefik"
+
+      - name: Ensure acme.json exists and is secure
+        run: |
+          touch "${{ github.workspace }}/traefik/acme.json"
+          chmod 600 "${{ github.workspace }}/traefik/acme.json"
+
+      - name: Stop existing Traefik container (if any)
+        run: docker rm -f traefik || true
+
+      - name: Ensure docker network 'web' exists
+        run: docker network inspect web >/dev/null 2>&1 || docker network create web
+
+      - name: Pull Traefik image
+        run: docker pull traefik:latest
+
+      - name: Run Traefik container
+        run: |
+          docker run -d --name traefik \
+            --network web \
+            -p 80:80 -p 443:443 -p 8080:8080 \
+            -v /var/run/docker.sock:/var/run/docker.sock:ro \
+            -v "${{ github.workspace }}/traefik/traefik.yml":/etc/traefik/traefik.yml:ro \
+            -v "${{ github.workspace }}/traefik/acme.json":/acme.json \
+            --restart=always \
+            traefik:latest
