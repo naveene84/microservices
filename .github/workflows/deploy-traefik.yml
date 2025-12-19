@@ -1,4 +1,4 @@
-name: Deploy Traefik + Flask (3 replicas) and verify LB
+name: Deploy Traefik + Single Flask Instance
 
 on:
   push:
@@ -6,27 +6,25 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy-and-verify:
-    name: Deploy Traefik + Flask replicas and verify load balancing
+  deploy-single:
+    name: Deploy Traefik + single Flask instance
     runs-on: self-hosted
     env:
-      REPLICAS: 3
       APP_HOST: flask.local
-      APP_SERVICE: flask-service
+      APP_IMAGE: flaskapp:latest
       APP_PORT: 5000
-      APP_IMAGE: flaskapp:${{ github.sha }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Ensure traefik directory & config exist
+      - name: Ensure traefik directory & static config
         run: |
           set -euo pipefail
-          mkdir -p "${{ github.workspace }}/traefik"
-          # If you checked in traefik/traefik.yml use it, otherwise create a safe default
-          if [ ! -f "${{ github.workspace }}/traefik/traefik.yml" ]; then
-cat > "${{ github.workspace }}/traefik/traefik.yml" <<'EOF'
+          mkdir -p "$GITHUB_WORKSPACE/traefik"
+          # Create a minimal traefik static config if it doesn't exist
+          if [ ! -f "$GITHUB_WORKSPACE/traefik/traefik.yml" ]; then
+cat > "$GITHUB_WORKSPACE/traefik/traefik.yml" <<'EOF'
 entryPoints:
   web:
     address: ":80"
@@ -35,6 +33,7 @@ entryPoints:
 
 api:
   dashboard: true
+  # insecure: true exposes the dashboard without auth — useful for testing only
   insecure: true
 
 providers:
@@ -52,21 +51,21 @@ certificatesResolvers:
 EOF
           fi
 
-      - name: Ensure acme.json exists and secure it
+      - name: Ensure acme.json exists and is secure
         run: |
-          touch "${{ github.workspace }}/traefik/acme.json"
-          chmod 600 "${{ github.workspace }}/traefik/acme.json"
+          touch "$GITHUB_WORKSPACE/traefik/acme.json"
+          chmod 600 "$GITHUB_WORKSPACE/traefik/acme.json"
 
       - name: Build Flask app image
         run: |
           set -euo pipefail
-          docker build -t "$APP_IMAGE" "${{ github.workspace }}/app"
+          docker build -t "$APP_IMAGE" "$GITHUB_WORKSPACE/app"
 
       - name: Stop any existing containers
         run: |
           set -euo pipefail
           docker rm -f traefik || true
-          for i in $(seq 1 $REPLICAS); do docker rm -f "flask${i}" || true; done
+          docker rm -f flaskapp || true
 
       - name: Ensure docker network 'web' exists
         run: |
@@ -83,12 +82,12 @@ EOF
             --network web \
             -p 80:80 -p 443:443 -p 8080:8080 \
             -v /var/run/docker.sock:/var/run/docker.sock:ro \
-            -v "${{ github.workspace }}/traefik/traefik.yml":/etc/traefik/traefik.yml:ro \
-            -v "${{ github.workspace }}/traefik/acme.json":/acme.json \
+            -v "$GITHUB_WORKSPACE/traefik/traefik.yml":/etc/traefik/traefik.yml:ro \
+            -v "$GITHUB_WORKSPACE/traefik/acme.json":/acme.json \
             --restart=always \
             traefik:latest
 
-      - name: Wait for Traefik to be ready
+      - name: Wait for Traefik dashboard to be ready
         run: |
           set -euo pipefail
           for i in $(seq 1 30); do
@@ -102,88 +101,44 @@ EOF
           docker logs traefik || true
           exit 1
 
-      - name: Start Flask replicas and register with Traefik
+      - name: Run Flask app container (single instance)
         run: |
           set -euo pipefail
-          docker run -d --name flask1 --network web \
+          docker run -d --name flaskapp --network web \
             -e "FLASK_ENV=production" \
             -l "traefik.enable=true" \
             -l "traefik.http.routers.flask.rule=Host(`$APP_HOST`)" \
             -l "traefik.http.routers.flask.entrypoints=web" \
-            -l "traefik.http.routers.flask.service=$APP_SERVICE" \
-            -l "traefik.http.services.$APP_SERVICE.loadbalancer.server.port=$APP_PORT" \
+            -l "traefik.http.services.flask-service.loadbalancer.server.port=$APP_PORT" \
             "$APP_IMAGE"
 
-          i=2
-          while [ $i -le $REPLICAS ]; do
-            docker run -d --name "flask${i}" --network web \
-              -e "FLASK_ENV=production" \
-              -l "traefik.enable=true" \
-              -l "traefik.http.services.$APP_SERVICE.loadbalancer.server.port=$APP_PORT" \
-              "$APP_IMAGE"
-            i=$((i+1))
-          done
-
-      - name: Wait for all replicas to register in Traefik
-        run: |
-          set -euo pipefail
-          for i in $(seq 1 30); do
-            docker_count=$(docker ps --filter "name=flask" --format '{{.Names}}' | wc -l)
-            if [ "$docker_count" -ge "$REPLICAS" ]; then
-              echo "Found $docker_count flask containers (expected $REPLICAS)"
-              break
-            fi
-            sleep 1
-          done
-
-      - name: Verify load balancing (30 requests) and save results
+      - name: Verify app responds through Traefik
         id: verify
         run: |
           set -euo pipefail
-          OUTDIR="${{ github.workspace }}/traffic-check"
+          OUTDIR="$GITHUB_WORKSPACE/verify"
           mkdir -p "$OUTDIR"
-          HOST_HEADER="$APP_HOST"
-          URL="http://127.0.0.1/"
-          HOSTS_FILE="$OUTDIR/hosts.txt"
-          : > "$HOSTS_FILE"
-
-          for i in $(seq 1 30); do
-            resp=$(curl -s -H "Host: $HOST_HEADER" "$URL" || true)
-            host=$(printf "%s" "$resp" | sed -n 's/.*"host": *"\([^"]*\)".*/\1/p' || true)
-            if [ -z "$host" ]; then
-              echo "NOHOST" >> "$HOSTS_FILE"
-            else
-              echo "$host" >> "$HOSTS_FILE"
-            fi
-            sleep 0.2
-          done
-
-          echo "=== individual responses ===" > "$OUTDIR/results.txt"
-          nl -ba "$HOSTS_FILE" >> "$OUTDIR/results.txt"
-          echo >> "$OUTDIR/results.txt"
-          echo "=== counts ===" >> "$OUTDIR/results.txt"
-          sort "$HOSTS_FILE" | uniq -c >> "$OUTDIR/results.txt"
-          echo >> "$OUTDIR/results.txt"
-
-          unique_non_empty=$(grep -v '^NOHOST$' "$HOSTS_FILE" | sort | uniq | wc -l || true)
-          echo "UNIQUE_NON_EMPTY=$unique_non_empty" >> "$OUTDIR/results.txt"
-          cat "$OUTDIR/results.txt"
-          if [ "$unique_non_empty" -lt "$REPLICAS" ]; then
-            echo "ERROR: expected to see responses from $REPLICAS distinct backends but saw $unique_non_empty" >&2
+          # Single request using Host header
+          resp=$(curl -s -H "Host: $APP_HOST" http://127.0.0.1/ || true)
+          echo "$resp" > "$OUTDIR/response.txt"
+          if printf "%s" "$resp" | grep -q '"status": "ok\|Hello from the Flask app' ; then
+            echo "APP_OK=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "APP_OK=false" >> "$GITHUB_OUTPUT"
+            cat "$OUTDIR/response.txt" >&2
             exit 1
           fi
 
-      - name: Upload verification result artifact
+      - name: Upload verification artifact
         uses: actions/upload-artifact@v4
         with:
-          name: traefik-flask-verification
+          name: traefik-flask-single-verification
           path: |
-            ${{ github.workspace }}/traffic-check/results.txt
-            ${{ github.workspace }}/traffic-check/hosts.txt
+            ${{ github.workspace }}/verify/response.txt
 
-      - name: Optional cleanup (set CLEANUP=true to enable)
+      - name: Optional cleanup (set CLEANUP=true)
         if: ${{ env.CLEANUP == 'true' }}
         run: |
           set -euo pipefail
+          docker rm -f flaskapp || true
           docker rm -f traefik || true
-          for i in $(seq 1 $REPLICAS); do docker rm -f "flask${i}" || true; done
