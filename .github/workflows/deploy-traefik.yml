@@ -1,4 +1,4 @@
-name: Deploy Traefik on self-hosted
+name: Deploy Traefik and Flask app on self-hosted
 
 on:
   push:
@@ -7,12 +7,17 @@ on:
 
 jobs:
   deploy:
-    name: Deploy Traefik
+    name: Deploy Traefik + Flask
     runs-on: self-hosted
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Build Flask app image
+        working-directory: ./app
+        run: |
+          docker build -t flaskapp:latest .
 
       - name: Ensure traefik directory exists
         run: mkdir -p "${{ github.workspace }}/traefik"
@@ -22,8 +27,10 @@ jobs:
           touch "${{ github.workspace }}/traefik/acme.json"
           chmod 600 "${{ github.workspace }}/traefik/acme.json"
 
-      - name: Stop existing Traefik container (if any)
-        run: docker rm -f traefik || true
+      - name: Stop existing containers (if any)
+        run: |
+          docker rm -f traefik || true
+          docker rm -f flaskapp || true
 
       - name: Ensure docker network 'web' exists
         run: docker network inspect web >/dev/null 2>&1 || docker network create web
@@ -41,3 +48,13 @@ jobs:
             -v "${{ github.workspace }}/traefik/acme.json":/acme.json \
             --restart=always \
             traefik:latest
+
+      - name: Run Flask app container (attached to Traefik)
+        run: |
+          docker run -d --name flaskapp --network web \
+            -e "FLASK_ENV=production" \
+            -l "traefik.enable=true" \
+            -l "traefik.http.routers.flask.rule=Host(`flask.local`)" \
+            -l "traefik.http.routers.flask.entrypoints=web" \
+            -l "traefik.http.services.flask.loadbalancer.server.port=5000" \
+            flaskapp:latest

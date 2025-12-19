@@ -6,8 +6,7 @@ entryPoints:
 
 api:
   dashboard: true
-  # For quick testing you can set insecure: true which exposes the dashboard on 8080 without auth.
-  # Remove or set to false in production and protect the dashboard with proper authentication.
+  # Insecure: exposes the dashboard without auth on port 8080. Remove or set to false in production.
   insecure: true
 
 providers:
