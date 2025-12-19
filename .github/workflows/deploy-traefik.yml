@@ -24,24 +24,20 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p traefik
-          # Create a minimal traefik static config if it doesn't exist
           if [ ! -f "traefik/traefik.yml" ]; then
-cat > "traefik/traefik.yml" <<'EOF'
+          cat > "traefik/traefik.yml" <<EOF
 entryPoints:
   web:
     address: ":80"
   websecure:
     address: ":443"
-
 api:
   dashboard: true
   insecure: true
-
 providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-
 certificatesResolvers:
   myresolver:
     acme:
