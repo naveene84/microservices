@@ -108,6 +108,28 @@ jobs:
             -l "traefik.http.services.flask-service.loadbalancer.server.port=$APP_PORT" \
             "$APP_IMAGE"
 
+      - name: Debug Traefik and Network
+        if: always() # Always run this step to get debug info, even if previous steps fail
+        run: |
+          set -euo pipefail
+          echo "--- Waiting a bit more for services to register ---"
+          sleep 5
+
+          echo "--- Inspecting 'web' network ---"
+          docker network inspect web
+
+          echo "--- Traefik container logs ---"
+          docker logs traefik
+
+          echo "--- Flask app container logs ---"
+          docker logs flaskapp
+
+          echo "--- Traefik API raw data (discovered configuration) ---"
+          # We'll use curl's output to see what Traefik has discovered.
+          # The 'jq' tool is used to format the JSON output nicely.
+          # If jq is not installed on your runner, you can remove '| jq .'
+          curl -s http://127.0.0.1:8080/api/rawdata | jq . || curl -s http://127.0.0.1:8080/api/rawdata
+
       - name: Verify app responds through Traefik
         id: verify
         run: |
