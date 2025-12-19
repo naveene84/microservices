@@ -26,30 +26,30 @@ jobs:
           mkdir -p "${{ github.workspace }}/traefik"
           # If you checked in traefik/traefik.yml use it, otherwise create a safe default
           if [ ! -f "${{ github.workspace }}/traefik/traefik.yml" ]; then
-            cat > "${{ github.workspace }}/traefik/traefik.yml" <<'EOF'
-            entryPoints:
-              web:
-                address: ":80"
-              websecure:
-                address: ":443"
+cat > "${{ github.workspace }}/traefik/traefik.yml" <<'EOF'
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
 
-            api:
-              dashboard: true
-              insecure: true
+api:
+  dashboard: true
+  insecure: true
 
-            providers:
-              docker:
-                endpoint: "unix:///var/run/docker.sock"
-                exposedByDefault: false
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
 
-            certificatesResolvers:
-              myresolver:
-                acme:
-                  email: your-email@example.com
-                  storage: /acme.json
-                  httpChallenge:
-                    entryPoint: web
-            EOF
+certificatesResolvers:
+  myresolver:
+    acme:
+      email: your-email@example.com
+      storage: /acme.json
+      httpChallenge:
+        entryPoint: web
+EOF
           fi
 
       - name: Ensure acme.json exists and secure it
@@ -91,7 +91,6 @@ jobs:
       - name: Wait for Traefik to be ready
         run: |
           set -euo pipefail
-          # wait for dashboard endpoint to return something (timeout ~30s)
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8080/dashboard/ >/dev/null 2>&1; then
               echo "traefik is up"
@@ -106,7 +105,6 @@ jobs:
       - name: Start Flask replicas and register with Traefik
         run: |
           set -euo pipefail
-          # Start first instance with router labels (router -> service). Other instances only register as service servers.
           docker run -d --name flask1 --network web \
             -e "FLASK_ENV=production" \
             -l "traefik.enable=true" \
@@ -116,7 +114,6 @@ jobs:
             -l "traefik.http.services.$APP_SERVICE.loadbalancer.server.port=$APP_PORT" \
             "$APP_IMAGE"
 
-          # Start remaining replicas
           i=2
           while [ $i -le $REPLICAS ]; do
             docker run -d --name "flask${i}" --network web \
@@ -130,21 +127,10 @@ jobs:
       - name: Wait for all replicas to register in Traefik
         run: |
           set -euo pipefail
-          # wait until Traefik reports at least $REPLICAS servers for the service
           for i in $(seq 1 30); do
-            servers_count=$(curl -s http://127.0.0.1:8080/api/http/services | \
-              grep -o "\"$APP_SERVICE\"" >/dev/null 2>&1 && \
-              curl -s http://127.0.0.1:8080/api/http/services | \
-                sed -n 's/\\\\"/"/g' | tr -d '\n' | \
-                grep -o "\"$APP_SERVICE\".*" | \
-                sed 's/.*loadBalancer.*servers\":\\[//g' | sed 's/]$//g' | tr -d '[:space:]' | sed 's/},{/}\\n{/g' | wc -l) || true
-
-            # Fallback: count running flask containers
             docker_count=$(docker ps --filter "name=flask" --format '{{.Names}}' | wc -l)
-
             if [ "$docker_count" -ge "$REPLICAS" ]; then
               echo "Found $docker_count flask containers (expected $REPLICAS)"
-              # We accept docker_count as success because API parsing can vary between Traefik versions
               break
             fi
             sleep 1
@@ -161,7 +147,6 @@ jobs:
           HOSTS_FILE="$OUTDIR/hosts.txt"
           : > "$HOSTS_FILE"
 
-          # Make 30 requests and record the host field returned by the Flask app
           for i in $(seq 1 30); do
             resp=$(curl -s -H "Host: $HOST_HEADER" "$URL" || true)
             host=$(printf "%s" "$resp" | sed -n 's/.*"host": *"\([^"]*\)".*/\1/p' || true)
@@ -183,7 +168,6 @@ jobs:
           unique_non_empty=$(grep -v '^NOHOST$' "$HOSTS_FILE" | sort | uniq | wc -l || true)
           echo "UNIQUE_NON_EMPTY=$unique_non_empty" >> "$OUTDIR/results.txt"
           cat "$OUTDIR/results.txt"
-          # Fail the job if we didn't see at least as many unique backends as replicas.
           if [ "$unique_non_empty" -lt "$REPLICAS" ]; then
             echo "ERROR: expected to see responses from $REPLICAS distinct backends but saw $unique_non_empty" >&2
             exit 1
