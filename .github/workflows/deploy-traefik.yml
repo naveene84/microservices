@@ -27,29 +27,29 @@ jobs:
           # If you checked in traefik/traefik.yml use it, otherwise create a safe default
           if [ ! -f "${{ github.workspace }}/traefik/traefik.yml" ]; then
             cat > "${{ github.workspace }}/traefik/traefik.yml" <<'EOF'
-entryPoints:
-  web:
-    address: ":80"
-  websecure:
-    address: ":443"
+            entryPoints:
+              web:
+                address: ":80"
+              websecure:
+                address: ":443"
 
-api:
-  dashboard: true
-  insecure: true
+            api:
+              dashboard: true
+              insecure: true
 
-providers:
-  docker:
-    endpoint: "unix:///var/run/docker.sock"
-    exposedByDefault: false
+            providers:
+              docker:
+                endpoint: "unix:///var/run/docker.sock"
+                exposedByDefault: false
 
-certificatesResolvers:
-  myresolver:
-    acme:
-      email: your-email@example.com
-      storage: /acme.json
-      httpChallenge:
-        entryPoint: web
-EOF
+            certificatesResolvers:
+              myresolver:
+                acme:
+                  email: your-email@example.com
+                  storage: /acme.json
+                  httpChallenge:
+                    entryPoint: web
+            EOF
           fi
 
       - name: Ensure acme.json exists and secure it
