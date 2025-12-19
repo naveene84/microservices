@@ -104,8 +104,9 @@ jobs:
           set -euo pipefail
           docker run -d --name flaskapp --network web \
             -e "FLASK_ENV=production" \
+            -e "APP_HOST=${APP_HOST}" \
             -l "traefik.enable=true" \
-            -l "traefik.http.routers.flask.rule=Host(`$APP_HOST`)" \
+            -l "traefik.http.routers.flask.rule=Host(`${APP_HOST}`)" \
             -l "traefik.http.routers.flask.entrypoints=web" \
             -l "traefik.http.routers.flask.service=flask-service" \
             -l "traefik.http.services.flask-service.loadbalancer.server.port=$APP_PORT" \
