@@ -104,6 +104,7 @@ jobs:
             -l "traefik.enable=true" \
             -l "traefik.http.routers.flask.rule=Host(`$APP_HOST`)" \
             -l "traefik.http.routers.flask.entrypoints=web" \
+            -l "traefik.http.routers.flask.service=flask-service" \
             -l "traefik.http.services.flask-service.loadbalancer.server.port=$APP_PORT" \
             "$APP_IMAGE"
 
