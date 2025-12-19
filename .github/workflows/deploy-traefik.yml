@@ -97,6 +97,9 @@ jobs:
           exit 1
 
       - name: Run Flask app container (single instance)
+        env:
+          # Explicitly map the job-level env var to this step's environment
+          APP_HOST: ${{ env.APP_HOST }}
         run: |
           set -euo pipefail
           docker run -d --name flaskapp --network web \
