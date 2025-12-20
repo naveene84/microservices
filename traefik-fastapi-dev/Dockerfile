@@ -7,13 +7,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY main.py .
-
-ENV PORT=8000
-EXPOSE 8000
+COPY app .
 
 # Use gunicorn for production-like serving
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "main:app", "--workers", "2"]
+CMD ["uvicorn", "--host",  "0.0.0.0", "main:app", "--port", "8000"]
