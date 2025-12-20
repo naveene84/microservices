@@ -20,5 +20,6 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.services.fastapi.loadbalancer.server.port=8000"
-      - "traefik.http.routers.fastapi.rule=Host(`localhost`,`127.0.0.1`)"
+        #- "traefik.http.routers.fastapi.rule=Host(`localhost`,`127.0.0.1`)"
+      - "traefik.http.routers.fastapi.rule=PathPrefix(`/`)"
 
