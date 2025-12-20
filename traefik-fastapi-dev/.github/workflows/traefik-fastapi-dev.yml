@@ -16,8 +16,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. Build and start Traefik + FastAPI services
-      - name: Build and start containers
+      #2 Build the FastApi image
+      - name: Build the FastApi image
+        run: !
+          docker build -t fastapi .traefik-fastapi-dev/app
+
+      # 3. Start Traefik + FastAPI services
+      - name: Start containers
         run: |
           docker-compose up -d --build
 
