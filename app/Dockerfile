@@ -10,10 +10,10 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py .
+COPY main.py .
 
 ENV PORT=5000
 EXPOSE 5000
 
 # Use gunicorn for production-like serving
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:app", "--workers", "2"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "main:app", "--workers", "2"]
