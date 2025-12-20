@@ -1,23 +1,12 @@
 entryPoints:
   web:
     address: ":80"
-  websecure:
-    address: ":443"
-
-api:
-  dashboard: true
-  # Insecure: exposes the dashboard without auth on port 8080. Remove or set to false in production.
-  insecure: true
 
 providers:
   docker:
-    endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
 
-certificatesResolvers:
-  myresolver:
-    acme:
-      email: your-email@example.com
-      storage: /acme.json
-      httpChallenge:
-        entryPoint: web
+api:
+  dashboard: true
+  insecure: true
+

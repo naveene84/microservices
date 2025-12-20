@@ -1,159 +1,37 @@
-name: Deploy Traefik + Single Flask Instance
+name: Deploy FastAPI with Traefik
 
 on:
   push:
-    branches: [ "main" ]
-  workflow_dispatch:
+    branches:
+      - main
 
 jobs:
-  deploy-single:
-    name: Deploy Traefik + single Flask instance
-    runs-on: self-hosted
-    env:
-      APP_HOST: flask.local
-      APP_IMAGE: flaskapp:latest
-      APP_PORT: 5000
-      # Added a specific tag for the Traefik image for more predictable deployments
-      TRAEFIK_IMAGE: traefik:v2.11 
+  deploy:
+    runs-on: self-hosted   # or ubuntu-latest if Docker is available
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Ensure traefik directory & static config
+      - name: Verify Docker
+        run: docker version
+
+      - name: Stop existing stack
         run: |
-          set -euo pipefail
-          mkdir -p traefik
-          if [ ! -f "traefik/traefik.yml" ]; then
-            echo "entryPoints:" > traefik/traefik.yml
-            echo "  web:" >> traefik/traefik.yml
-            echo "    address: \":80\"" >> traefik/traefik.yml
-            echo "  websecure:" >> traefik/traefik.yml
-            echo "    address: \":443\"" >> traefik/traefik.yml
-            echo "api:" >> traefik/traefik.yml
-            echo "  dashboard: true" >> traefik/traefik.yml
-            echo "  insecure: true" >> traefik/traefik.yml
-            echo "providers:" >> traefik/traefik.yml
-            echo "  docker:" >> traefik/traefik.yml
-            echo "    endpoint: \"unix:///var/run/docker.sock\"" >> traefik/traefik.yml
-            echo "    exposedByDefault: false" >> traefik/traefik.yml
-            echo "certificatesResolvers:" >> traefik/traefik.yml
-            echo "  myresolver:" >> traefik/traefik.yml
-            echo "    acme:" >> traefik/traefik.yml
-            echo "      email: your-email@example.com" >> traefik/traefik.yml
-            echo "      storage: /acme.json" >> traefik/traefik.yml
-            echo "      httpChallenge:" >> traefik/traefik.yml
-            echo "        entryPoint: web" >> traefik/traefik.yml
-          fi
+          docker compose down || true
 
-      - name: Ensure acme.json exists and is secure
+      - name: Build images
         run: |
-          touch traefik/acme.json
-          chmod 600 traefik/acme.json
+          docker compose build
 
-      - name: Build Flask app image
+      - name: Start stack with 3 replicas
         run: |
-          set -euo pipefail
-          # Assumes the Dockerfile for the app is in the 'app' directory
-          docker build -t "$APP_IMAGE" ./app
+          docker compose up -d --scale fastapi=3
 
-      - name: Stop any existing containers
+      - name: Verify containers
         run: |
-          # This prevents the workflow from failing if the containers don't exist
-          docker rm -f traefik flaskapp || true
+          docker ps
 
-      - name: Ensure docker network 'web' exists
+      - name: Smoke test
         run: |
-          docker network inspect web >/dev/null 2>&1 || docker network create web
-
-      - name: Pull Traefik image
-        run: docker pull $TRAEFIK_IMAGE
-
-      - name: Run Traefik container
-        run: |
-          set -euo pipefail
-          docker run -d --name traefik \
-            --network web \
-            -p 80:80 -p 443:443 -p 8080:8080 \
-            -v /var/run/docker.sock:/var/run/docker.sock:ro \
-            -v "$PWD/traefik/traefik.yml":/etc/traefik/traefik.yml:ro \
-            -v "$PWD/traefik/acme.json":/acme.json \
-            --restart=always \
-            $TRAEFIK_IMAGE
-
-      - name: Wait for Traefik dashboard to be ready
-        run: |
-          set -euo pipefail
-          echo "Waiting for Traefik to start..."
-          for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8080/api/rawdata >/dev/null 2>&1; then
-              echo "Traefik dashboard is up!"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Error: Traefik failed to start or dashboard not accessible." >&2
-          docker logs traefik || true
-          exit 1
-
-      - name: Run Flask app container (single instance)
-        env:
-          # Explicitly map the job-level env var to this step's environment
-          APP_HOST: ${{ env.APP_HOST }}
-        run: |
-          set -euo pipefail
-          docker run -d --name flaskapp --network web \
-            -e "FLASK_ENV=production" \
-            -e "APP_HOST=${APP_HOST}" \
-            -l "traefik.enable=true" \
-            -l "traefik.http.routers.flask.rule=Host(`${APP_HOST}`)" \
-            -l "traefik.http.routers.flask.entrypoints=web" \
-            -l "traefik.http.routers.flask.service=flask-service" \
-            -l "traefik.http.services.flask-service.loadbalancer.server.port=$APP_PORT" \
-            "$APP_IMAGE"
-
-      - name: Debug Traefik and Network
-        if: always() # Always run this step to get debug info, even if previous steps fail
-        run: |
-          set -euo pipefail
-          echo "--- Waiting a bit more for services to register ---"
-          sleep 5
-
-          echo "--- Inspecting 'web' network ---"
-          docker network inspect web
-
-          echo "--- Traefik container logs ---"
-          docker logs traefik
-
-          echo "--- Flask app container logs ---"
-          docker logs flaskapp
-
-          echo "--- Traefik API raw data (discovered configuration) ---"
-          # We'll use curl's output to see what Traefik has discovered.
-          # The 'jq' tool is used to format the JSON output nicely.
-          # If jq is not installed on your runner, you can remove '| jq .'
-          curl -s http://127.0.0.1:8080/api/rawdata | jq . || curl -s http://127.0.0.1:8080/api/rawdata
-
-      - name: Verify app responds through Traefik
-        id: verify
-        run: |
-          set -euo pipefail
-          # Wait a moment for the flask app to be registered by Traefik
-          sleep 5
-          echo "Verifying Flask app is accessible via Traefik..."
-          
-          # Use --fail to make curl exit with an error on HTTP failure codes
-          if curl -fsS -H "Host: $APP_HOST" http://127.0.0.1/; then
-            echo "Verification successful!"
-            echo "APP_OK=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Error: App did not respond correctly through Traefik." >&2
-            docker logs flaskapp || true
-            exit 1
-          fi
-
-      - name: Optional cleanup (set CLEANUP env var to 'true')
-        if: env.CLEANUP == 'true'
-        run: |
-          echo "Cleaning up containers..."
-          docker rm -f flaskapp traefik || true
+          curl -s http://localhost || true
