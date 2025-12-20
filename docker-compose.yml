@@ -1,4 +1,4 @@
-version: "3.9"
+#version: "3.9"
 
 networks:
   web:
@@ -29,8 +29,8 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.services.fastapi.loadbalancer.server.port=8000"
-      - "traefik.http.routers.fastapi.rule=Host(`localhost`)"
-        #- "traefik.http.routers.fastapi.rule=PathPrefix(`/`)"
+        #- "traefik.http.routers.fastapi.rule=Host(`localhost`)"
+      - "traefik.http.routers.fastapi.rule=PathPrefix(`/`)"
     networks:
       - web
 
