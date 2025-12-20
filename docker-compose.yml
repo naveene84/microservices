@@ -23,6 +23,9 @@ services:
 
   fastapi:
     build: ./app
+    expose:
+      - 8000
+
     labels:
       - "traefik.enable=true"
       - "traefik.http.services.fastapi.loadbalancer.server.port=8000"
