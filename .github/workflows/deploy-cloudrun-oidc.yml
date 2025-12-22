@@ -8,12 +8,14 @@ on:
 env:
   SERVICE_NAME: fastapi-oidc
   REGION: asia-south2
+  CLOUD_RUN_SERVICE: github-cloudrun-deployer
+  CLOUD_RUN_REGION: asia-south2
   IMAGE_NAME: ghcr.io/${{ github.repository }}/fastapi:latest  # optional GHCR image
   PROJECT_ID: project-9e6b8a1b-ac7b-4870-993
   PROJECT_NUMBER: 909234899256
   WORKLOAD_IDENTITY_POOL: github-pool
   WORKLOAD_IDENTITY_PROVIDER: github-provider
-  SA_EMAIL: github-oidc@$PROJECT_ID.iam.gserviceaccount.com
+  SA_EMAIL: github-oidc@${{ env.PROJECT_ID }}.iam.gserviceaccount.com 
 
 
 jobs:
@@ -57,8 +59,17 @@ jobs:
 
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy $SERVICE_NAME \
-            --image=$IMAGE_NAME \
-            --region=$REGION \
-            --platform=managed \
-            --allow-unauthenticated
+          gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+            --region ${{ env.CLOUD_RUN_REGION }} \
+            --platform managed \
+            --source . \
+            --allow-unauthenticated \
+            --min-instances=0 \
+            --max-instances=1 \
+            --cpu=1 \
+            --memory=512Mi
+
+
+
+
+
