@@ -14,7 +14,7 @@ env:
   PROJECT_ID: project-9e6b8a1b-ac7b-4870-993
   PROJECT_NUMBER: 909234899256
   WORKLOAD_IDENTITY_POOL: github-pool
-  WORKLOAD_IDENTITY_PROVIDER: github-provider
+  WORKLOAD_IDENTITY_PROVIDER: projects/909234899256/locations/global/workloadIdentityPools/github-pool/providers/github-provider
   SA_EMAIL: github-oidc@$PROJECT_ID.iam.gserviceaccount.com 
 
 
@@ -51,7 +51,7 @@ jobs:
       - name: Authenticate to Google Cloud (OIDC)
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          workload_identity_provider: projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/providers/github-provider
           service_account: github-oidc@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
 
       - name: Set up gcloud
