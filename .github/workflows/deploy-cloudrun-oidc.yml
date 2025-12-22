@@ -6,59 +6,31 @@ on:
       - fastapi-in-cloudrun
 
 env:
-  SERVICE_NAME: fastapi-oidc
-  REGION: asia-south2
-  CLOUD_RUN_SERVICE: github-cloudrun-deployer
-  CLOUD_RUN_REGION: asia-south2
-  IMAGE_NAME: ghcr.io/${{ github.repository }}/fastapi:latest  # optional GHCR image
-  PROJECT_ID: project-9e6b8a1b-ac7b-4870-993
-  PROJECT_NUMBER: 909234899256
-  WORKLOAD_IDENTITY_POOL: github-pool
-  WORKLOAD_IDENTITY_PROVIDER: projects/909234899256/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-  SA_EMAIL: github-oidc@$PROJECT_ID.iam.gserviceaccount.com 
-
+  PROJECT_ID: "project-9e6b8a1b-ac7b-4870-993"
+  PROJECT_NUMBER: "909234899256"
+  CLOUD_RUN_SERVICE: "github-cloudrun-deployer"
+  CLOUD_RUN_REGION: "asia-south2"
+  # Use the exact resource name format
+  WIP: "projects/909234899256/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+  SA_EMAIL: "github-oidc@project-9e6b8a1b-ac7b-4870-993.iam.gserviceaccount.com"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     permissions:
-      id-token: write      # REQUIRED for OIDC
+      id-token: write
       contents: read
-      packages: write      # if pushing to GHCR
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Optional: Login to GitHub Container Registry
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-            #- name: Build Docker image
-            #run: |
-            #docker build -t $IMAGE_NAME .
-
-            #- name: Push Docker image to GHCR
-            #run: |
-            #docker push $IMAGE_NAME
-
-      # Authenticate to Google Cloud using OIDC
       - id: 'auth'
         name: 'Authenticate to Google Cloud'
         uses: 'google-github-actions/auth@v2'
         with:
-          workload_identity_provider: 'projects/909234899256/locations/global/workload_identity_pools/github-pool/providers/github-provider'
-          service_account: 'github-oidc@project-9e6b8a1b-ac7b-4870-993.iam.gserviceaccount.com'
-            #- name: Authenticate to Google Cloud (OIDC)
-            #uses: google-github-actions/auth@v2
-            #with:
-            #workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
-            #service_account: github-oidc@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+          workload_identity_provider: ${{ env.WIP }}
+          service_account: ${{ env.SA_EMAIL }}
 
       - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
@@ -66,16 +38,7 @@ jobs:
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+            --project ${{ env.PROJECT_ID }} \
             --region ${{ env.CLOUD_RUN_REGION }} \
-            --platform managed \
             --source . \
-            --allow-unauthenticated \
-            --min-instances=0 \
-            --max-instances=1 \
-            --cpu=1 \
-            --memory=512Mi
-
-
-
-
-
+            --allow-unauthenticated
