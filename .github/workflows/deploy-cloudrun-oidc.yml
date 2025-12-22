@@ -52,7 +52,6 @@ jobs:
         name: 'Authenticate to Google Cloud'
         uses: 'google-github-actions/auth@v2'
         with:
-          # Use the resource name format, NOT the URL format
           workload_identity_provider: 'projects/909234899256/locations/global/workload_identity_pools/github-pool/providers/github-provider'
           service_account: 'github-oidc@project-9e6b8a1b-ac7b-4870-993.iam.gserviceaccount.com'
             #- name: Authenticate to Google Cloud (OIDC)
