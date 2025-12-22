@@ -15,7 +15,7 @@ env:
   PROJECT_NUMBER: 909234899256
   WORKLOAD_IDENTITY_POOL: github-pool
   WORKLOAD_IDENTITY_PROVIDER: github-provider
-  SA_EMAIL: github-oidc@${{ env.PROJECT_ID }}.iam.gserviceaccount.com 
+  SA_EMAIL: github-oidc@$PROJECT_ID.iam.gserviceaccount.com 
 
 
 jobs:
