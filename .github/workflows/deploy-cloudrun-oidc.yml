@@ -39,13 +39,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Docker image
-        run: |
-          docker build -t $IMAGE_NAME .
+            #- name: Build Docker image
+            #run: |
+            #docker build -t $IMAGE_NAME .
 
-      - name: Push Docker image to GHCR
-        run: |
-          docker push $IMAGE_NAME
+            #- name: Push Docker image to GHCR
+            #run: |
+            #docker push $IMAGE_NAME
 
       # Authenticate to Google Cloud using OIDC
       - name: Authenticate to Google Cloud (OIDC)
