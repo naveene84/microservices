@@ -7,8 +7,14 @@ on:
 
 env:
   SERVICE_NAME: fastapi-oidc
-  REGION: us-central1
+  REGION: asia-south2
   IMAGE_NAME: ghcr.io/${{ github.repository }}/fastapi:latest  # optional GHCR image
+  PROJECT_ID: project-9e6b8a1b-ac7b-4870-993
+  PROJECT_NUMBER: 909234899256
+  WORKLOAD_IDENTITY_POOL: github-pool
+  WORKLOAD_IDENTITY_PROVIDER: github-provider
+  SA_EMAIL: github-oidc@$PROJECT_ID.iam.gserviceaccount.com
+
 
 jobs:
   deploy:
