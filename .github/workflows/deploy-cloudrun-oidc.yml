@@ -60,7 +60,7 @@ jobs:
             gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
               --project ${{ env.PROJECT_ID }} \
               --region ${{ env.CLOUD_RUN_REGION }} \
-              --image "$IMAGE" \
+              --image ${{ env.IMAGE_NAME }} \
               --allow-unauthenticated
               --platform managed
       
