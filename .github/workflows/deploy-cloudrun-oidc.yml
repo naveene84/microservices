@@ -26,7 +26,22 @@ jobs:
 
         - name: Checkout repository
           uses: actions/checkout@v4
+        
+        - name: Login to GHCR
+          uses: docker/login-action@v3
+          with:
+            registry: ghcr.io
+            username: ${{ github.actor }}
+            password: ${{ secrets.GITHUB_TOKEN }}
 
+        - name: Build Docker image
+          run: |
+            docker build -t $IMAGE_NAME .
+
+        - name: Push Docker image to GHCR
+          run: |
+            docker push $IMAGE_NAME
+        
         - id: auth
           name: Authenticate to Google Cloud
           uses: google-github-actions/auth@v2
