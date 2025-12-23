@@ -14,6 +14,7 @@ env:
   # Use the exact resource name format
   WIP: "projects/909234899256/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
   SA_EMAIL: "github-oidc@project-9e6b8a1b-ac7b-4870-993.iam.gserviceaccount.com"
+  IMAGE_NAME: "ghcr.io/${{ github.repository }}/fastapi:latest"
 
 jobs:
   deploy:
