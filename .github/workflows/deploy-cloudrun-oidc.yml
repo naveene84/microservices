@@ -8,6 +8,7 @@ on:
 env:
   PROJECT_ID: "project-9e6b8a1b-ac7b-4870-993"
   PROJECT_NUMBER: "909234899256"
+  AR_REPO: "cloud-run-source-deploy"
   CLOUD_RUN_SERVICE: "github-cloudrun-deployer"
   CLOUD_RUN_REGION: "asia-south2"
   # Use the exact resource name format
@@ -33,12 +34,3 @@ jobs:
           service_account: ${{ env.SA_EMAIL }}
 
       - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
-            --project ${{ env.PROJECT_ID }} \
-            --region ${{ env.CLOUD_RUN_REGION }} \
-            --source . \
-            --allow-unauthenticated
