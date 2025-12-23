@@ -9,3 +9,7 @@ def root():
         "service": "fastapi",
         "hostname": socket.gethostname()
     }
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
