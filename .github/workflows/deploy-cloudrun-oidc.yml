@@ -40,9 +40,10 @@ jobs:
           run: |
             docker build -t $IMAGE_NAME .
 
-        - name: Push Docker image to GHCR
+        - name: Push Docker image to GHCR (optional)
+          continue-on-error: true
           run: |
-            docker push $IMAGE_NAME
+            docker push $IMAGE_NAME || echo "Skipping GHCR push"
         
         - id: auth
           name: Authenticate to Google Cloud
@@ -53,14 +54,36 @@ jobs:
 
         - name: Set up gcloud
           uses: google-github-actions/setup-gcloud@v2
-       
-        - name: Deploy to Cloud Run (prebuilt image)
+        
+        - name: Ensure Artifact Registry repo exists
+          run: |
+            set -euo pipefail
+            gcloud artifacts repositories describe ${{ env.AR_REPO }} \
+              --location=${{ env.CLOUD_RUN_REGION }} >/dev/null 2>&1 || \
+            gcloud artifacts repositories create ${{ env.AR_REPO }} \
+              --repository-format=docker \
+              --location=${{ env.CLOUD_RUN_REGION }} \
+              --description="Cloud Run images"
+
+        - name: Configure Docker auth for Artifact Registry
+          run: |
+            gcloud auth configure-docker ${{ env.CLOUD_RUN_REGION }}-docker.pkg.dev --quiet
+
+        - name: Push image to Artifact Registry
+          run: |
+            set -euo pipefail
+            AR_IMAGE="${{ env.CLOUD_RUN_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.CLOUD_RUN_SERVICE }}:${{ github.sha }}"
+            docker tag $IMAGE_NAME "$AR_IMAGE"
+            docker push "$AR_IMAGE"
+            echo "AR_IMAGE=$AR_IMAGE" >> $GITHUB_ENV
+
+        - name: Deploy to Cloud Run (Artifact Registry image)
           run: |
             set -euo pipefail
             gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
               --project ${{ env.PROJECT_ID }} \
               --region ${{ env.CLOUD_RUN_REGION }} \
-              --image ${{ env.IMAGE_NAME }} \
+              --image ${{ env.AR_IMAGE }} \
+              --platform managed \
               --allow-unauthenticated
-              --platform managed
       
