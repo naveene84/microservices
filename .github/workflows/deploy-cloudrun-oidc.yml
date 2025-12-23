@@ -84,6 +84,9 @@ jobs:
               --project ${{ env.PROJECT_ID }} \
               --region ${{ env.CLOUD_RUN_REGION }} \
               --image "$AR_IMAGE" \
+              --set-env-vars PORT=8080 \
+              --port 8080 \
+              --timeout 300 \
               --platform managed \
               --allow-unauthenticated \
               --min-instances 0
