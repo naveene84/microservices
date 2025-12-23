@@ -33,4 +33,24 @@ jobs:
           workload_identity_provider: ${{ env.WIP }}
           service_account: ${{ env.SA_EMAIL }}
 
-      - name: Set up gcloud
+        - name: Set up gcloud
+          uses: google-github-actions/setup-gcloud@v2
+
+        - name: Build image with Cloud Build (staging to GCS bucket)
+          run: |
+            set -euo pipefail
+            IMAGE="asia-south2-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.CLOUD_RUN_SERVICE }}:${GITHUB_SHA}"
+            STAGING_DIR="gs://${{ env.PROJECT_ID }}_cloudbuild/source"
+            gcloud builds submit . \
+              --tag "$IMAGE" \
+              --gcs-source-staging-dir="$STAGING_DIR"
+            echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+
+        - name: Deploy to Cloud Run (prebuilt image)
+          run: |
+            set -euo pipefail
+            gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+              --project ${{ env.PROJECT_ID }} \
+              --region ${{ env.CLOUD_RUN_REGION }} \
+              --image "$IMAGE" \
+              --allow-unauthenticated
